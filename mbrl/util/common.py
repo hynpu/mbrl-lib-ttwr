@@ -543,6 +543,7 @@ def rollout_agent_trajectories(
             obs = next_obs
             total_reward += reward
             step += 1
+            # reached the max allowed trail length
             if not collect_full_trajectories and step == steps_or_trials_to_collect:
                 total_rewards.append(total_reward)
                 return total_rewards

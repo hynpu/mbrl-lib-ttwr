@@ -53,6 +53,11 @@ def train(
 
     # -------- Create and populate initial env dataset --------
     dynamics_model = mbrl.util.common.create_one_dim_tr_model(cfg, obs_shape, act_shape)
+
+    # NN input is cur_state + cur_action, which is 4 + 1 for cartpole
+    # NN output shape of model is state's gaussian mean and variance, which is 4 + 4
+    print("dyn model", dynamics_model)
+
     use_double_dtype = cfg.algorithm.get("normalize_double_precision", False)
     dtype = np.double if use_double_dtype else np.float32
     replay_buffer = mbrl.util.common.create_replay_buffer(

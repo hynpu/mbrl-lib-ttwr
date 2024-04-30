@@ -164,6 +164,10 @@ class CEMOptimizer(Optimizer):
         mu, dispersion = self._init_population_params(x0)
         best_solution = torch.empty_like(mu)
         best_value = -np.inf
+        # hao:
+        # concatenate population size tuple with x0 shape size
+        # x0 is previous solution sequence (or action sequence, a_t, a_t+1, a_t+2 ….
+        # population size means that, for each state, we have population_size of actions
         population = torch.zeros((self.population_size,) + x0.shape).to(
             device=self.device
         )
