@@ -1,5 +1,5 @@
 import numpy as np
-import assets.ttwr as ttwr_conf
+from . import ttwr_config as ttwr_config
 
 def wrapTo2Pi(angle):
     posIn = angle>0
@@ -29,79 +29,79 @@ def renderTtwr(self, figure, axes, full_state, delta):
     x2 = full_state[3]
     y2 = full_state[4]
     theta2 = full_state[5]
-    host_len = ttwr_conf.host_length
-    host_wid = ttwr_conf.host_width
-    trailer_front_overhang = ttwr_conf.trailer_front_overhang
-    trailer_rear_overhang = ttwr_conf.trailer_rear_overhang
-    trailer_width = ttwr_conf.trailer_width
+    host_len = ttwr_config.host_length
+    host_wid = ttwr_config.host_width
+    trailer_front_overhang = ttwr_config.trailer_front_overhang
+    trailer_rear_overhang = ttwr_config.trailer_rear_overhang
+    trailer_width = ttwr_config.trailer_width
 
     # host vehicle centroid point
-    x1_cent = x1 + ttwr_conf.L1/2 * np.cos(theta1)
-    y1_cent = y1 + ttwr_conf.L1/2 * np.sin(theta1)
+    x1_cent = x1 + ttwr_config.L1/2 * np.cos(theta1)
+    y1_cent = y1 + ttwr_config.L1/2 * np.sin(theta1)
 
     # host vehicle front reference point
-    x1_front = x1 + ttwr_conf.L1 * np.cos(theta1)
-    y1_front = y1 + ttwr_conf.L1 * np.sin(theta1)
+    x1_front = x1 + ttwr_config.L1 * np.cos(theta1)
+    y1_front = y1 + ttwr_config.L1 * np.sin(theta1)
     
     # hitch point
-    hitch_x = x1 - ttwr_conf.L2 * np.cos(theta1)
-    hitch_y = y1 - ttwr_conf.L2 * np.sin(theta1)
+    hitch_x = x1 - ttwr_config.L2 * np.cos(theta1)
+    hitch_y = y1 - ttwr_config.L2 * np.sin(theta1)
 
     # front wheels of host vehicle
     # compute left front wheel point using x1_front and y1_front
-    x1_lf = x1_front - ttwr_conf.host_width/2 * np.sin(theta1)
-    y1_lf = y1_front + ttwr_conf.host_width/2 * np.cos(theta1)
+    x1_lf = x1_front - ttwr_config.host_width/2 * np.sin(theta1)
+    y1_lf = y1_front + ttwr_config.host_width/2 * np.cos(theta1)
     # compute left front wheel after delta turn and wheel dimension
-    x1_lf_frt = x1_lf + ttwr_conf.wheel_radius * np.cos(theta1+delta)
-    y1_lf_frt = y1_lf + ttwr_conf.wheel_radius * np.sin(theta1+delta)
-    x1_lf_rear = x1_lf - ttwr_conf.wheel_radius * np.cos(theta1+delta)
-    y1_lf_rear = y1_lf - ttwr_conf.wheel_radius * np.sin(theta1+delta)
+    x1_lf_frt = x1_lf + ttwr_config.wheel_radius * np.cos(theta1+delta)
+    y1_lf_frt = y1_lf + ttwr_config.wheel_radius * np.sin(theta1+delta)
+    x1_lf_rear = x1_lf - ttwr_config.wheel_radius * np.cos(theta1+delta)
+    y1_lf_rear = y1_lf - ttwr_config.wheel_radius * np.sin(theta1+delta)
 
     # compute right front wheel point using x1_front and y1_front
-    x1_rf = x1_front + ttwr_conf.host_width/2 * np.sin(theta1)
-    y1_rf = y1_front - ttwr_conf.host_width/2 * np.cos(theta1)
+    x1_rf = x1_front + ttwr_config.host_width/2 * np.sin(theta1)
+    y1_rf = y1_front - ttwr_config.host_width/2 * np.cos(theta1)
     # compute right front wheel after delta turn and wheel dimension
-    x1_rf_frt = x1_rf + ttwr_conf.wheel_radius * np.cos(theta1+delta)
-    y1_rf_frt = y1_rf + ttwr_conf.wheel_radius * np.sin(theta1+delta)
-    x1_rf_rear = x1_rf - ttwr_conf.wheel_radius * np.cos(theta1+delta)
-    y1_rf_rear = y1_rf - ttwr_conf.wheel_radius * np.sin(theta1+delta)
+    x1_rf_frt = x1_rf + ttwr_config.wheel_radius * np.cos(theta1+delta)
+    y1_rf_frt = y1_rf + ttwr_config.wheel_radius * np.sin(theta1+delta)
+    x1_rf_rear = x1_rf - ttwr_config.wheel_radius * np.cos(theta1+delta)
+    y1_rf_rear = y1_rf - ttwr_config.wheel_radius * np.sin(theta1+delta)
     
     # rear wheels of host vehicle
     # compute left rear wheel point using x1_front and y1_front
-    x1_lr = x1 - ttwr_conf.host_width/2 * np.sin(theta1)
-    y1_lr = y1 + ttwr_conf.host_width/2 * np.cos(theta1)
+    x1_lr = x1 - ttwr_config.host_width/2 * np.sin(theta1)
+    y1_lr = y1 + ttwr_config.host_width/2 * np.cos(theta1)
     # compute left front wheel after delta turn and wheel dimension
-    x1_lr_frt = x1_lr + ttwr_conf.wheel_radius * np.cos(theta1)
-    y1_lr_frt = y1_lr + ttwr_conf.wheel_radius * np.sin(theta1)
-    x1_lr_rear = x1_lr - ttwr_conf.wheel_radius * np.cos(theta1)
-    y1_lr_rear = y1_lr - ttwr_conf.wheel_radius * np.sin(theta1)
+    x1_lr_frt = x1_lr + ttwr_config.wheel_radius * np.cos(theta1)
+    y1_lr_frt = y1_lr + ttwr_config.wheel_radius * np.sin(theta1)
+    x1_lr_rear = x1_lr - ttwr_config.wheel_radius * np.cos(theta1)
+    y1_lr_rear = y1_lr - ttwr_config.wheel_radius * np.sin(theta1)
 
     # compute left rear wheel point using x1_front and y1_front
-    x1_rr = x1 + ttwr_conf.host_width/2 * np.sin(theta1)
-    y1_rr = y1 - ttwr_conf.host_width/2 * np.cos(theta1)
+    x1_rr = x1 + ttwr_config.host_width/2 * np.sin(theta1)
+    y1_rr = y1 - ttwr_config.host_width/2 * np.cos(theta1)
     # compute left front wheel after delta turn and wheel dimension
-    x1_rr_frt = x1_rr + ttwr_conf.wheel_radius * np.cos(theta1)
-    y1_rr_frt = y1_rr + ttwr_conf.wheel_radius * np.sin(theta1)
-    x1_rr_rear = x1_rr - ttwr_conf.wheel_radius * np.cos(theta1)
-    y1_rr_rear = y1_rr - ttwr_conf.wheel_radius * np.sin(theta1)
+    x1_rr_frt = x1_rr + ttwr_config.wheel_radius * np.cos(theta1)
+    y1_rr_frt = y1_rr + ttwr_config.wheel_radius * np.sin(theta1)
+    x1_rr_rear = x1_rr - ttwr_config.wheel_radius * np.cos(theta1)
+    y1_rr_rear = y1_rr - ttwr_config.wheel_radius * np.sin(theta1)
 
     # wheels of trailer vehicle
     # compute left trailer wheel point using x2 and y2
-    x2_lt = x2 - ttwr_conf.trailer_width/2 * np.sin(theta2)
-    y2_lt = y2 + ttwr_conf.trailer_width/2 * np.cos(theta2)
+    x2_lt = x2 - ttwr_config.trailer_width/2 * np.sin(theta2)
+    y2_lt = y2 + ttwr_config.trailer_width/2 * np.cos(theta2)
     # compute left front wheel after delta turn and wheel dimension
-    x2_lt_frt = x2_lt + ttwr_conf.wheel_radius * np.cos(theta2)
-    y2_lt_frt = y2_lt + ttwr_conf.wheel_radius * np.sin(theta2)
-    x2_lt_rear = x2_lt - ttwr_conf.wheel_radius * np.cos(theta2)
-    y2_lt_rear = y2_lt - ttwr_conf.wheel_radius * np.sin(theta2)
+    x2_lt_frt = x2_lt + ttwr_config.wheel_radius * np.cos(theta2)
+    y2_lt_frt = y2_lt + ttwr_config.wheel_radius * np.sin(theta2)
+    x2_lt_rear = x2_lt - ttwr_config.wheel_radius * np.cos(theta2)
+    y2_lt_rear = y2_lt - ttwr_config.wheel_radius * np.sin(theta2)
     # compute right trailer wheel point using x2 and y2
-    x2_rt = x2 + ttwr_conf.trailer_width/2 * np.sin(theta2)
-    y2_rt = y2 - ttwr_conf.trailer_width/2 * np.cos(theta2)
+    x2_rt = x2 + ttwr_config.trailer_width/2 * np.sin(theta2)
+    y2_rt = y2 - ttwr_config.trailer_width/2 * np.cos(theta2)
     # compute right front wheel after delta turn and wheel dimension
-    x2_rt_frt = x2_rt + ttwr_conf.wheel_radius * np.cos(theta2)
-    y2_rt_frt = y2_rt + ttwr_conf.wheel_radius * np.sin(theta2)
-    x2_rt_rear = x2_rt - ttwr_conf.wheel_radius * np.cos(theta2)
-    y2_rt_rear = y2_rt - ttwr_conf.wheel_radius * np.sin(theta2)
+    x2_rt_frt = x2_rt + ttwr_config.wheel_radius * np.cos(theta2)
+    y2_rt_frt = y2_rt + ttwr_config.wheel_radius * np.sin(theta2)
+    x2_rt_rear = x2_rt - ttwr_config.wheel_radius * np.cos(theta2)
+    y2_rt_rear = y2_rt - ttwr_config.wheel_radius * np.sin(theta2)
 
     # compute rectangle corner points of host vehicle
     host_x_rect = np.array([x1_cent + host_len/2 * np.cos(theta1) + host_wid/2 * np.sin(theta1), \

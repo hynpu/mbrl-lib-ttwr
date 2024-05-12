@@ -5,7 +5,21 @@ x_min = 0
 x_max = 60
 y_min = -20
 y_max = 20
+
 map_margin = 5
+
+map_x_min = x_min - map_margin
+map_x_max = x_max + map_margin
+map_y_min = y_min - map_margin
+map_y_max = y_max + map_margin
+
+# goal state is on the origin, x axis heading
+goal_state = np.array([0, 0, 0, 0], dtype=np.float32)
+dist_tolerance = 1
+theta_tolerance = 0.2
+phi_tolerance = 0.2
+
+distance_reward_range = (1, 10)  # Desired range for distance reward
 
 v1_min= -5 # max truck speed
 v1_max= 2 # max truck speed

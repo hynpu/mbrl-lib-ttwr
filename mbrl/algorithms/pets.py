@@ -32,6 +32,8 @@ def train(
     # ------------------- Initialization -------------------
     debug_mode = cfg.get("debug_mode", False)
 
+    print(f"Training with config: {cfg}.")
+
     obs_shape = env.observation_space.shape
     act_shape = env.action_space.shape
 

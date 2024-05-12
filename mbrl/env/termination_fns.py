@@ -3,11 +3,9 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import math
-
 import torch
-
-# TODO remove act from all of these, it's not needed
-
+import mbrl.env.ttwr_assets.ttwr_config as ttwr_config
+import numpy as np
 
 def hopper(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     assert len(next_obs.shape) == 2
@@ -25,8 +23,42 @@ def hopper(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     done = done[:, None]
     return done
 
+def ttwrTermination(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:    
+    assert len(next_obs.shape) == 2
+    
+    # Unpack the state components
+    x2, y2, theta2, phi = next_obs[:, 0], next_obs[:, 1], next_obs[:, 2], next_obs[:, 3]
+    
+    goal_x2, goal_y2, goal_theta2, goal_phi = ttwr_config.goal_state
+    
+    # Check for jackknife angle violation
+    jackknife_violation = torch.abs(phi) > ttwr_config.jackKnifeAngle
+    
+    # Check if the trailer is out of range
+    out_of_range = (x2 < ttwr_config.x_min) | (x2 > ttwr_config.x_max) | (y2 < ttwr_config.y_min) | (y2 > ttwr_config.y_max)
+    
+    # Combine the termination conditions
+    episode_failed = jackknife_violation | out_of_range
+    
+    # Compute the position and angle differences
+    pos_diff = torch.sqrt((x2 - goal_x2) ** 2 + (y2 - goal_y2) ** 2)
+    theta_diff = torch.abs(theta2 - goal_theta2)
+    phi_diff = torch.abs(phi - goal_phi)
+    
+    goal_reached = (pos_diff < ttwr_config.dist_tolerance) & (theta_diff < ttwr_config.theta_tolerance) & (phi_diff < ttwr_config.phi_tolerance)
+    
+    return episode_failed, goal_reached
+
+
 def ttwrParking(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
-    pass
+    assert len(next_obs.shape) == 2
+    
+    episode_failed, goal_reached = ttwrTermination(act, next_obs)
+
+    done = episode_failed | goal_reached
+    done = done[:, None]
+    
+    return done
 
 
 def cartpole(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:

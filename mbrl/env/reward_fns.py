@@ -3,8 +3,44 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import torch
+import numpy as np
 
 from . import termination_fns
+import mbrl.env.ttwr_assets.ttwr_config as ttwr_config
+
+def ttwrParking(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
+    assert len(next_obs.shape) == len(act.shape) == 2
+
+    # Unpack the state components
+    x2, y2, theta2, phi = next_obs[:, 0], next_obs[:, 1], next_obs[:, 2], next_obs[:, 3]
+    goal_x2, goal_y2, goal_theta2, goal_phi = ttwr_config.goal_state
+    
+
+    # Compute the position and angle differences
+    pos_diff = torch.sqrt((x2 - goal_x2) ** 2 + (y2 - goal_y2) ** 2)
+    theta_diff = torch.abs(theta2 - goal_theta2)
+    phi_diff = torch.abs(phi - goal_phi)
+    
+    # Reward computation
+    theta_reward = -theta_diff ** 2
+    phi_reward = -phi_diff ** 2
+    distance_reward = pos_diff  # normalized distance reward
+    distance_reward = ttwr_config.distance_reward_range[0] + (ttwr_config.distance_reward_range[1] - ttwr_config.distance_reward_range[0]) * distance_reward
+    
+    total_reward = 0.5 * distance_reward + 0.25 * theta_reward + 0.25 * phi_reward
+
+    episode_failed, goal_reached = termination_fns.ttwrTermination(act, next_obs)
+
+    # for episode_failed, punish the agent
+    total_reward = torch.where(episode_failed, torch.tensor(-100.0), total_reward)
+
+    # for goal reached, reward the agent
+    total_reward = torch.where(goal_reached, torch.tensor(100.0), total_reward)
+
+    # reshape the reward tensor
+    total_reward = total_reward[:, None]
+    
+    return total_reward
 
 
 def cartpole(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:

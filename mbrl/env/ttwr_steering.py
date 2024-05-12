@@ -7,9 +7,8 @@ from gymnasium import logger, spaces
 from gymnasium.error import DependencyNotInstalled
 import matplotlib.pyplot as plt
 
-import assets.ttwr as ttwr_conf
-import helpers as helpers
-
+import mbrl.env.ttwr_assets.ttwr_config as ttwr_config
+import mbrl.env.ttwr_assets.ttwr_helpers as ttwr_helpers
 
 
 class TtwrEnv(gym.Env):
@@ -20,43 +19,28 @@ class TtwrEnv(gym.Env):
 
     def __init__(self, render_mode: Optional[str] = None):
 
-        self.L1 = ttwr_conf.L1
-        self.L2 = ttwr_conf.L2
-        self.L3 = ttwr_conf.L3
-        self.dt = ttwr_conf.dt
-
-        self.length = ttwr_conf.host_length
-        self.width = ttwr_conf.host_width
-
-        self.v1_min = ttwr_conf.v1_min
-        self.v1_max = ttwr_conf.v1_max
-        
-        self.x_min = ttwr_conf.x_min
-        self.x_max = ttwr_conf.x_max
-        self.y_min = ttwr_conf.y_min
-        self.y_max = ttwr_conf.y_max
-
-        self.map_x_min = ttwr_conf.x_min - ttwr_conf.map_margin
-        self.map_x_max = ttwr_conf.x_max + ttwr_conf.map_margin
-        self.map_y_min = ttwr_conf.y_min - ttwr_conf.map_margin
-        self.map_y_max = ttwr_conf.y_max + ttwr_conf.map_margin       
-
-        self.str_lim = ttwr_conf.maxSteeringAngle
-        self.phi_lim = ttwr_conf.jackKnifeAngle
+        self.L1 = ttwr_config.L1
+        self.L2 = ttwr_config.L2
+        self.L3 = ttwr_config.L3
+        self.dt = ttwr_config.dt
 
         # init input TODO: use velo as input instead of fixed value
         self.v1 = -2
         self.delta = 0
 
+        self.steps = 0
+        self.steps_beyond_terminated = None
+
         # minimal states required: [x2, y2, theta2, phi]
         self.state = np.zeros(4)
+        self.state_init = np.zeros(4)
         self.full_state = np.zeros(8)
-        low_obs_state = np.array([self.x_min, self.y_min, -np.pi, -self.phi_lim], dtype=np.float32)
-        high_obs_state = np.array([self.x_max, self.y_max, np.pi, self.phi_lim], dtype=np.float32)
+        low_obs_state = np.array([ttwr_config.x_min, ttwr_config.y_min, -np.pi, -ttwr_config.jackKnifeAngle], dtype=np.float32)
+        high_obs_state = np.array([ttwr_config.x_max, ttwr_config.y_max, np.pi, ttwr_config.jackKnifeAngle], dtype=np.float32)
 
         # input action is steering angle
-        act_min = np.array((-self.str_lim,), dtype=np.float32)
-        act_max = np.array((self.str_lim,), dtype=np.float32)
+        act_min = np.array((-ttwr_config.maxSteeringAngle,), dtype=np.float32)
+        act_max = np.array((ttwr_config.maxSteeringAngle,), dtype=np.float32)
         
         self.observation_space = spaces.Box(low_obs_state, high_obs_state, dtype=np.float32)
         self.action_space = spaces.Box(act_min, act_max, dtype=np.float32)
@@ -78,27 +62,39 @@ class TtwrEnv(gym.Env):
         self.clock = None
         self.isopen = True
 
-        self.steps_beyond_terminated = None
     
     # reset the trailer state, and compute the TTWR full states; also accept given trailer states
     def reset(self, seed: Optional[int] = None, desired_state: Optional[np.ndarray] = None, desired_v1 = None):
         super().reset(seed=seed)
-
+        easy_mode = True
         if desired_state is not None:
             self.state = desired_state           
         else:
-            distance = np.random.uniform(20, 40)
-            heading = np.random.uniform(-np.pi/6, np.pi/6)
-            x2 = distance * np.cos(heading)
-            y2 = distance * np.sin(heading)
-            theta2 = heading + np.random.uniform(-np.pi/6, np.pi/6)
-            phi = 0 # np.random.uniform(-np.pi/10, np.pi/10)
-            self.state = np.array([x2, y2, theta2, phi])
+            if easy_mode:
+                x2 = np.random.uniform(39, 41)
+                y2 = np.random.uniform(19, 21)
+                theta2 = np.pi/4 + np.random.uniform(-np.pi/10, np.pi/10)
+                phi = 0 # np.random.uniform(-np.pi/10, np.pi/10)
+                self.state = np.array([x2, y2, theta2, phi])
+            else:
+                distance = np.random.uniform(20, 40)
+                heading = np.random.uniform(-np.pi/6, np.pi/6)
+                x2 = distance * np.cos(heading)
+                y2 = distance * np.sin(heading)
+                theta2 = heading + np.random.uniform(-np.pi/6, np.pi/6)
+                phi = 0 # np.random.uniform(-np.pi/10, np.pi/10)
+                self.state = np.array([x2, y2, theta2, phi])
+
+        self.state_init = self.state.copy()
+        
+        self.distance_init_to_goal = np.linalg.norm([self.state_init[0] - ttwr_config.goal_state[0], self.state_init[1] - ttwr_config.goal_state[1]])
+        self.max_steps_allowed = self.distance_init_to_goal * 2 / 1.0 / ttwr_config.dt # assuming vehicle run 1m/s, 2 times distance to goal
 
         # if truck velocity is given by user
         if desired_v1 is not None:
             self.v1 = desired_v1
         
+        self.steps = 0
         self.steps_beyond_terminated = None
         
         # trailer states from env
@@ -138,7 +134,7 @@ class TtwrEnv(gym.Env):
         # ttwr states
         x2 += x2_dot * self.dt
         y2 += y2_dot * self.dt
-        theta2 = helpers.wrapToPi(theta2_dot * self.dt + theta2)
+        theta2 = ttwr_helpers.wrapToPi(theta2_dot * self.dt + theta2)
         phi += phi_dot * self.dt
 
         self.state = np.array([x2, y2, theta2, phi])
@@ -146,27 +142,64 @@ class TtwrEnv(gym.Env):
         # get ttwr based on trailer states and phi
         self.compute_full_state(self.state)
 
-        # TODO: to be implemented
-        reward = 0
+        goal_reached, total_reward = self.is_parked()
+        episode_fail, failure_reward = self.is_failed()
+        
+        reward = total_reward + failure_reward
+        terminate_episode = goal_reached or episode_fail
 
-        termination_condition, goal_reached = self.is_terminated()
-        terminate_episode = termination_condition or goal_reached
-
+        # leave truncated as False and Info as empty for now
         return self.state, reward, terminate_episode, False, {}
     
-    def is_terminated(self):
-        x2, y2, theta2, phi = self.state
-        trailer_jackknifed = np.abs(phi) > self.phi_lim
-        outside_map_boundaries = (
-            x2 < self.map_x_min or x2 > self.map_x_max
-            or y2 < self.map_y_min or y2 > self.map_y_max
-        )
+    def is_parked(self):
+        # Unpack the state components
+        x2, y2, theta2, phi, = self.state
+        goal_x2, goal_y2, goal_theta2, goal_phi = ttwr_config.goal_state
 
-        termination_condition = trailer_jackknifed or outside_map_boundaries
-        # reached the goal (0, 0) with theta2 close to 0
-        goal_reached = np.linalg.norm([x2, y2]) < 1 and np.abs(theta2) < 0.1
+        # Compute the position and angle differences
+        pos_diff = np.sqrt((x2 - goal_x2) ** 2 + (y2 - goal_y2) ** 2)
+        theta_diff = np.abs(theta2 - goal_theta2)
+        phi_diff = np.abs(phi - goal_phi)
 
-        return termination_condition, goal_reached
+        # Check if the agent is within the goal tolerance
+        if (pos_diff < ttwr_config.dist_tolerance) & (theta_diff < ttwr_config.theta_tolerance) & (phi_diff < ttwr_config.phi_tolerance):
+            goal_reached = True
+            parking_reward = 100
+        else:
+            goal_reached = False
+            parking_reward = 0
+        
+        # reward computation
+        theta_reward = -theta_diff ** 2
+        phi_reward = -phi_diff ** 2
+        distance_reward = np.tanh(pos_diff / self.distance_init_to_goal) # normalized distance reward
+        distance_reward = ttwr_config.distance_reward_range[0] + (ttwr_config.distance_reward_range[1] - ttwr_config.distance_reward_range[0]) * distance_reward
+
+        total_reward = 0.5 * distance_reward + 0.25 * theta_reward + 0.25 * phi_reward + parking_reward
+
+        return goal_reached, total_reward
+    
+
+    def is_failed(self):
+        # Unpack the state components
+        x2, y2, theta2, phi, = self.state
+        goal_x2, goal_y2, goal_theta2, goal_phi = ttwr_config.goal_state
+
+        # Check for jackknife angle violation
+        jackknife_violation = np.abs(phi) > ttwr_config.jackKnifeAngle
+
+        # Check if the trailer is out of range
+        out_of_range = (x2 < ttwr_config.x_min) | (x2 > ttwr_config.x_max) | (y2 < ttwr_config.y_min) | (y2 > ttwr_config.y_max)
+
+        # terminate if trailer cannot reach goal after 2*distance_to_goal/v1_min
+        time_exceeded = self.steps >= self.max_steps_allowed
+
+        # Combine the termination conditions
+        episode_terminate = jackknife_violation | out_of_range | time_exceeded
+
+        failure_reward = -100
+
+        return episode_terminate, failure_reward
 
     def close(self):
         pass
@@ -175,105 +208,104 @@ class TtwrEnv(gym.Env):
         if self.render_mode is None:
             gym.logger.warn(
                 "You are calling render method without specifying any render mode. "
-                "You can specify the render_mode at initialization, "
-                f'e.g. gym("{self.spec.id}", render_mode="rgb_array")'
+                "You can specify the render_mode at initialization."
             )
             return
         
         x1, y1, theta1, x2, y2, theta2 = self.full_state[:6]
 
         # host vehicle centroid point
-        x1_cent = x1 + ttwr_conf.L1/2 * np.cos(theta1)
-        y1_cent = y1 + ttwr_conf.L1/2 * np.sin(theta1)
+        x1_cent = x1 + ttwr_config.L1/2 * np.cos(theta1)
+        y1_cent = y1 + ttwr_config.L1/2 * np.sin(theta1)
 
         # host vehicle front reference point
-        x1_front = x1 + ttwr_conf.L1 * np.cos(theta1)
-        y1_front = y1 + ttwr_conf.L1 * np.sin(theta1)
+        x1_front = x1 + ttwr_config.L1 * np.cos(theta1)
+        y1_front = y1 + ttwr_config.L1 * np.sin(theta1)
         
         # hitch point
-        hitch_x = x1 - ttwr_conf.L2 * np.cos(theta1)
-        hitch_y = y1 - ttwr_conf.L2 * np.sin(theta1)
+        hitch_x = x1 - ttwr_config.L2 * np.cos(theta1)
+        hitch_y = y1 - ttwr_config.L2 * np.sin(theta1)
 
         # front wheels of host vehicle
         # compute left front wheel point using x1_front and y1_front
-        x1_lf = x1_front - ttwr_conf.host_width/2 * np.sin(theta1)
-        y1_lf = y1_front + ttwr_conf.host_width/2 * np.cos(theta1)
+        x1_lf = x1_front - ttwr_config.host_width/2 * np.sin(theta1)
+        y1_lf = y1_front + ttwr_config.host_width/2 * np.cos(theta1)
         # compute left front wheel after delta turn and wheel dimension
-        x1_lf_frt = x1_lf + ttwr_conf.wheel_radius * np.cos(theta1+self.delta)
-        y1_lf_frt = y1_lf + ttwr_conf.wheel_radius * np.sin(theta1+self.delta)
-        x1_lf_rear = x1_lf - ttwr_conf.wheel_radius * np.cos(theta1+self.delta)
-        y1_lf_rear = y1_lf - ttwr_conf.wheel_radius * np.sin(theta1+self.delta)
+        x1_lf_frt = x1_lf + ttwr_config.wheel_radius * np.cos(theta1+self.delta)
+        y1_lf_frt = y1_lf + ttwr_config.wheel_radius * np.sin(theta1+self.delta)
+        x1_lf_rear = x1_lf - ttwr_config.wheel_radius * np.cos(theta1+self.delta)
+        y1_lf_rear = y1_lf - ttwr_config.wheel_radius * np.sin(theta1+self.delta)
 
         # compute right front wheel point using x1_front and y1_front
-        x1_rf = x1_front + ttwr_conf.host_width/2 * np.sin(theta1)
-        y1_rf = y1_front - ttwr_conf.host_width/2 * np.cos(theta1)
+        x1_rf = x1_front + ttwr_config.host_width/2 * np.sin(theta1)
+        y1_rf = y1_front - ttwr_config.host_width/2 * np.cos(theta1)
         # compute right front wheel after delta turn and wheel dimension
-        x1_rf_frt = x1_rf + ttwr_conf.wheel_radius * np.cos(theta1+self.delta)
-        y1_rf_frt = y1_rf + ttwr_conf.wheel_radius * np.sin(theta1+self.delta)
-        x1_rf_rear = x1_rf - ttwr_conf.wheel_radius * np.cos(theta1+self.delta)
-        y1_rf_rear = y1_rf - ttwr_conf.wheel_radius * np.sin(theta1+self.delta)
+        x1_rf_frt = x1_rf + ttwr_config.wheel_radius * np.cos(theta1+self.delta)
+        y1_rf_frt = y1_rf + ttwr_config.wheel_radius * np.sin(theta1+self.delta)
+        x1_rf_rear = x1_rf - ttwr_config.wheel_radius * np.cos(theta1+self.delta)
+        y1_rf_rear = y1_rf - ttwr_config.wheel_radius * np.sin(theta1+self.delta)
         
         # rear wheels of host vehicle
         # compute left rear wheel point using x1_front and y1_front
-        x1_lr = x1 - ttwr_conf.host_width/2 * np.sin(theta1)
-        y1_lr = y1 + ttwr_conf.host_width/2 * np.cos(theta1)
+        x1_lr = x1 - ttwr_config.host_width/2 * np.sin(theta1)
+        y1_lr = y1 + ttwr_config.host_width/2 * np.cos(theta1)
         # compute left front wheel after delta turn and wheel dimension
-        x1_lr_frt = x1_lr + ttwr_conf.wheel_radius * np.cos(theta1)
-        y1_lr_frt = y1_lr + ttwr_conf.wheel_radius * np.sin(theta1)
-        x1_lr_rear = x1_lr - ttwr_conf.wheel_radius * np.cos(theta1)
-        y1_lr_rear = y1_lr - ttwr_conf.wheel_radius * np.sin(theta1)
+        x1_lr_frt = x1_lr + ttwr_config.wheel_radius * np.cos(theta1)
+        y1_lr_frt = y1_lr + ttwr_config.wheel_radius * np.sin(theta1)
+        x1_lr_rear = x1_lr - ttwr_config.wheel_radius * np.cos(theta1)
+        y1_lr_rear = y1_lr - ttwr_config.wheel_radius * np.sin(theta1)
 
         # compute left rear wheel point using x1_front and y1_front
-        x1_rr = x1 + ttwr_conf.host_width/2 * np.sin(theta1)
-        y1_rr = y1 - ttwr_conf.host_width/2 * np.cos(theta1)
+        x1_rr = x1 + ttwr_config.host_width/2 * np.sin(theta1)
+        y1_rr = y1 - ttwr_config.host_width/2 * np.cos(theta1)
         # compute left front wheel after delta turn and wheel dimension
-        x1_rr_frt = x1_rr + ttwr_conf.wheel_radius * np.cos(theta1)
-        y1_rr_frt = y1_rr + ttwr_conf.wheel_radius * np.sin(theta1)
-        x1_rr_rear = x1_rr - ttwr_conf.wheel_radius * np.cos(theta1)
-        y1_rr_rear = y1_rr - ttwr_conf.wheel_radius * np.sin(theta1)
+        x1_rr_frt = x1_rr + ttwr_config.wheel_radius * np.cos(theta1)
+        y1_rr_frt = y1_rr + ttwr_config.wheel_radius * np.sin(theta1)
+        x1_rr_rear = x1_rr - ttwr_config.wheel_radius * np.cos(theta1)
+        y1_rr_rear = y1_rr - ttwr_config.wheel_radius * np.sin(theta1)
 
         # wheels of trailer vehicle
         # compute left trailer wheel point using x2 and y2
-        x2_lt = x2 - ttwr_conf.trailer_width/2 * np.sin(theta2)
-        y2_lt = y2 + ttwr_conf.trailer_width/2 * np.cos(theta2)
+        x2_lt = x2 - ttwr_config.trailer_width/2 * np.sin(theta2)
+        y2_lt = y2 + ttwr_config.trailer_width/2 * np.cos(theta2)
         # compute left front wheel after delta turn and wheel dimension
-        x2_lt_frt = x2_lt + ttwr_conf.wheel_radius * np.cos(theta2)
-        y2_lt_frt = y2_lt + ttwr_conf.wheel_radius * np.sin(theta2)
-        x2_lt_rear = x2_lt - ttwr_conf.wheel_radius * np.cos(theta2)
-        y2_lt_rear = y2_lt - ttwr_conf.wheel_radius * np.sin(theta2)
+        x2_lt_frt = x2_lt + ttwr_config.wheel_radius * np.cos(theta2)
+        y2_lt_frt = y2_lt + ttwr_config.wheel_radius * np.sin(theta2)
+        x2_lt_rear = x2_lt - ttwr_config.wheel_radius * np.cos(theta2)
+        y2_lt_rear = y2_lt - ttwr_config.wheel_radius * np.sin(theta2)
         # compute right trailer wheel point using x2 and y2
-        x2_rt = x2 + ttwr_conf.trailer_width/2 * np.sin(theta2)
-        y2_rt = y2 - ttwr_conf.trailer_width/2 * np.cos(theta2)
+        x2_rt = x2 + ttwr_config.trailer_width/2 * np.sin(theta2)
+        y2_rt = y2 - ttwr_config.trailer_width/2 * np.cos(theta2)
         # compute right front wheel after delta turn and wheel dimension
-        x2_rt_frt = x2_rt + ttwr_conf.wheel_radius * np.cos(theta2)
-        y2_rt_frt = y2_rt + ttwr_conf.wheel_radius * np.sin(theta2)
-        x2_rt_rear = x2_rt - ttwr_conf.wheel_radius * np.cos(theta2)
-        y2_rt_rear = y2_rt - ttwr_conf.wheel_radius * np.sin(theta2)
+        x2_rt_frt = x2_rt + ttwr_config.wheel_radius * np.cos(theta2)
+        y2_rt_frt = y2_rt + ttwr_config.wheel_radius * np.sin(theta2)
+        x2_rt_rear = x2_rt - ttwr_config.wheel_radius * np.cos(theta2)
+        y2_rt_rear = y2_rt - ttwr_config.wheel_radius * np.sin(theta2)
 
         # compute rectangle corner points of host vehicle
-        host_x_rect = np.array([x1_cent + ttwr_conf.host_length/2 * np.cos(theta1) + ttwr_conf.host_width/2 * np.sin(theta1), \
-                                x1_cent + ttwr_conf.host_length/2 * np.cos(theta1) - ttwr_conf.host_width/2 * np.sin(theta1), \
-                                x1_cent - ttwr_conf.host_length/2 * np.cos(theta1) - ttwr_conf.host_width/2 * np.sin(theta1), \
-                                x1_cent - ttwr_conf.host_length/2 * np.cos(theta1) + ttwr_conf.host_width/2 * np.sin(theta1), \
-                                x1_cent + ttwr_conf.host_length/2 * np.cos(theta1) + ttwr_conf.host_width/2 * np.sin(theta1)])
-        host_y_rect = np.array([y1_cent + ttwr_conf.host_length/2 * np.sin(theta1) - ttwr_conf.host_width/2 * np.cos(theta1), \
-                                y1_cent + ttwr_conf.host_length/2 * np.sin(theta1) + ttwr_conf.host_width/2 * np.cos(theta1), \
-                                y1_cent - ttwr_conf.host_length/2 * np.sin(theta1) + ttwr_conf.host_width/2 * np.cos(theta1), \
-                                y1_cent - ttwr_conf.host_length/2 * np.sin(theta1) - ttwr_conf.host_width/2 * np.cos(theta1), \
-                                y1_cent + ttwr_conf.host_length/2 * np.sin(theta1) - ttwr_conf.host_width/2 * np.cos(theta1)])
+        host_x_rect = np.array([x1_cent + ttwr_config.host_length/2 * np.cos(theta1) + ttwr_config.host_width/2 * np.sin(theta1), \
+                                x1_cent + ttwr_config.host_length/2 * np.cos(theta1) - ttwr_config.host_width/2 * np.sin(theta1), \
+                                x1_cent - ttwr_config.host_length/2 * np.cos(theta1) - ttwr_config.host_width/2 * np.sin(theta1), \
+                                x1_cent - ttwr_config.host_length/2 * np.cos(theta1) + ttwr_config.host_width/2 * np.sin(theta1), \
+                                x1_cent + ttwr_config.host_length/2 * np.cos(theta1) + ttwr_config.host_width/2 * np.sin(theta1)])
+        host_y_rect = np.array([y1_cent + ttwr_config.host_length/2 * np.sin(theta1) - ttwr_config.host_width/2 * np.cos(theta1), \
+                                y1_cent + ttwr_config.host_length/2 * np.sin(theta1) + ttwr_config.host_width/2 * np.cos(theta1), \
+                                y1_cent - ttwr_config.host_length/2 * np.sin(theta1) + ttwr_config.host_width/2 * np.cos(theta1), \
+                                y1_cent - ttwr_config.host_length/2 * np.sin(theta1) - ttwr_config.host_width/2 * np.cos(theta1), \
+                                y1_cent + ttwr_config.host_length/2 * np.sin(theta1) - ttwr_config.host_width/2 * np.cos(theta1)])
 
 
         # compute rectangle corner points of host vehicle
-        trailer_x_rect = np.array([x2 + ttwr_conf.trailer_front_overhang * np.cos(theta2) + ttwr_conf.trailer_width/2 * np.sin(theta2), \
-                                    x2 + ttwr_conf.trailer_front_overhang * np.cos(theta2) - ttwr_conf.trailer_width/2 * np.sin(theta2), \
-                                    x2 - ttwr_conf.trailer_rear_overhang * np.cos(theta2) - ttwr_conf.trailer_width/2 * np.sin(theta2), \
-                                    x2 - ttwr_conf.trailer_rear_overhang * np.cos(theta2) + ttwr_conf.trailer_width/2 * np.sin(theta2), \
-                                    x2 + ttwr_conf.trailer_front_overhang * np.cos(theta2) + ttwr_conf.trailer_width/2 * np.sin(theta2)])
-        trailer_y_rect = np.array([y2 + ttwr_conf.trailer_front_overhang * np.sin(theta2) - ttwr_conf.trailer_width/2 * np.cos(theta2), \
-                                    y2 + ttwr_conf.trailer_front_overhang * np.sin(theta2) + ttwr_conf.trailer_width/2 * np.cos(theta2), \
-                                    y2 - ttwr_conf.trailer_rear_overhang * np.sin(theta2) + ttwr_conf.trailer_width/2 * np.cos(theta2), \
-                                    y2 - ttwr_conf.trailer_rear_overhang * np.sin(theta2) - ttwr_conf.trailer_width/2 * np.cos(theta2), \
-                                    y2 + ttwr_conf.trailer_front_overhang * np.sin(theta2) - ttwr_conf.trailer_width/2 * np.cos(theta2)])
+        trailer_x_rect = np.array([x2 + ttwr_config.trailer_front_overhang * np.cos(theta2) + ttwr_config.trailer_width/2 * np.sin(theta2), \
+                                    x2 + ttwr_config.trailer_front_overhang * np.cos(theta2) - ttwr_config.trailer_width/2 * np.sin(theta2), \
+                                    x2 - ttwr_config.trailer_rear_overhang * np.cos(theta2) - ttwr_config.trailer_width/2 * np.sin(theta2), \
+                                    x2 - ttwr_config.trailer_rear_overhang * np.cos(theta2) + ttwr_config.trailer_width/2 * np.sin(theta2), \
+                                    x2 + ttwr_config.trailer_front_overhang * np.cos(theta2) + ttwr_config.trailer_width/2 * np.sin(theta2)])
+        trailer_y_rect = np.array([y2 + ttwr_config.trailer_front_overhang * np.sin(theta2) - ttwr_config.trailer_width/2 * np.cos(theta2), \
+                                    y2 + ttwr_config.trailer_front_overhang * np.sin(theta2) + ttwr_config.trailer_width/2 * np.cos(theta2), \
+                                    y2 - ttwr_config.trailer_rear_overhang * np.sin(theta2) + ttwr_config.trailer_width/2 * np.cos(theta2), \
+                                    y2 - ttwr_config.trailer_rear_overhang * np.sin(theta2) - ttwr_config.trailer_width/2 * np.cos(theta2), \
+                                    y2 + ttwr_config.trailer_front_overhang * np.sin(theta2) - ttwr_config.trailer_width/2 * np.cos(theta2)])
 
         self.ax.clear()
         
@@ -298,6 +330,6 @@ class TtwrEnv(gym.Env):
         # ax.plot(cur_state[0], cur_state[1], 'o')
         # ax.plot(cur_state[3], cur_state[4], 'x')
         self.ax.axis('equal')
-        self.ax.set(xlim=(self.map_x_min, self.map_x_max), ylim=(self.map_y_min, self.map_y_max))
+        self.ax.set(xlim=(ttwr_config.map_x_min, ttwr_config.map_x_max), ylim=(ttwr_config.map_y_min, ttwr_config.map_y_max))
 
         plt.pause(np.finfo(np.float32).eps)
