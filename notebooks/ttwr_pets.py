@@ -34,7 +34,7 @@ obs_shape = env.observation_space.shape
 act_shape = env.action_space.shape
 
 # This functions allows the model to evaluate the true rewards given an observation 
-reward_fn = reward_fns.ttwrParking
+reward_fn = reward_fns.ttwrParkingPolynomial
 # This function allows the model to know if an observation should make the episode end
 term_fn = termination_fns.ttwrParking
 

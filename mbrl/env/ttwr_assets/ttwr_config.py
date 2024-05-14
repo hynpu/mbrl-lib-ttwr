@@ -3,8 +3,8 @@ import numpy as np
 # map limits
 x_min = 0
 x_max = 60
-y_min = -20
-y_max = 20
+y_min = -25
+y_max = 25
 
 map_margin = 5
 
@@ -15,7 +15,7 @@ map_y_max = y_max + map_margin
 
 # goal state is on the origin, x axis heading
 goal_state = np.array([0, 0, 0, 0], dtype=np.float32)
-dist_tolerance = 1
+dist_tolerance = 3
 theta_tolerance = 0.2
 phi_tolerance = 0.2
 

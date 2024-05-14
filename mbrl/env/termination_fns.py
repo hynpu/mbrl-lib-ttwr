@@ -36,6 +36,7 @@ def ttwrTermination(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     
     # Check if the trailer is out of range
     out_of_range = (x2 < ttwr_config.x_min) | (x2 > ttwr_config.x_max) | (y2 < ttwr_config.y_min) | (y2 > ttwr_config.y_max)
+    out_of_range = out_of_range | (y2 < -5) | (y2 > 25) |(x2 > 45)
     
     # Combine the termination conditions
     episode_failed = jackknife_violation | out_of_range

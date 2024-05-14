@@ -59,6 +59,12 @@ class ModelEnv:
             self._rng = torch.Generator(device=self.device)
         self._return_as_np = True
 
+        # if the env has a property called "extraData", we copy it to the model
+        if hasattr(env, "extraData"):
+            self.extraData = env.extraData
+        else:
+            self.extraData = {}
+
     def reset(
         self, initial_obs_batch: np.ndarray, return_as_np: bool = True
     ) -> Dict[str, torch.Tensor]:

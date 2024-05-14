@@ -43,6 +43,62 @@ def ttwrParking(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     return total_reward
 
 
+def ttwrParkingPolynomial(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
+    assert len(next_obs.shape) == len(act.shape) == 2
+    
+    # Unpack the state components
+    x2, y2, theta2, phi = next_obs[:, 0], next_obs[:, 1], next_obs[:, 2], next_obs[:, 3]
+    goal_x2, goal_y2, goal_theta2, goal_phi = ttwr_config.goal_state
+
+    # Calculate the distance to the goal position
+    # 45 is specialized for the ttwr environment whose start is 40 20
+    distance_to_goal = torch.sqrt((x2 - goal_x2) ** 2 + (y2 - goal_y2) ** 2) / 45
+    
+    # Fit a 2nd order polynomial curve between the current position and the goal position
+    delta_x = goal_x2 - x2
+    delta_y = goal_y2 - y2
+    
+    m = np.tan(goal_theta2)
+    a2 = ((y2 - goal_y2) - m * (x2 - goal_x2)) / (x2 - goal_x2) ** 2
+    a1 = m - 2 * (((y2 - goal_y2) - m * (x2 - goal_x2)) / (x2 - goal_x2) ** 2) * goal_x2
+    a0 = goal_y2 - a1 * goal_x2 - a2 * goal_x2 ** 2
+
+    # Calculate the tangent angle of the polynomial curve at the current position x2, y2
+    tangent_angle = torch.atan(2 * a2 * x2 + a1)
+    
+    # Calculate the alignment between the trailer's orientation and the tangent angle
+    theta_alignment = torch.cos(theta2 - tangent_angle)
+    
+    # Calculate the alignment reward component
+    theta_alignment_reward = torch.exp(-torch.pow(theta_alignment - 1, 2) / (2 * 0.5 ** 2))
+    
+    # Calculate the modified distance reward component
+    distance_reward = 1 / (1 + distance_to_goal) ** 4
+
+    # phi reward
+    phi_alignment = torch.cos(phi - goal_phi)
+    phi_alignment_reward = torch.exp(-torch.pow(phi_alignment - 1, 2) / (2 * 0.5 ** 2))
+    
+    # Adjust the alignment reward based on the distance to the goal
+    distance_threshold = 5  # Adjust this threshold as needed
+    weight_theta = torch.where(distance_to_goal < distance_threshold, torch.tensor(0.8), torch.tensor(1))
+    weight_dist = torch.where(distance_to_goal < distance_threshold, torch.tensor(0.8), torch.tensor(0.5))
+    weight_phi = torch.where(distance_to_goal < distance_threshold, torch.tensor(0.8), torch.tensor(0.5))
+    
+    # Combine the alignment reward and distance reward
+    total_reward = weight_theta * theta_alignment_reward + weight_dist * distance_reward + 0.2 * weight_phi * phi_alignment_reward
+    
+    # Apply penalties for episode failure and goal reached
+    episode_failed, goal_reached = termination_fns.ttwrTermination(act, next_obs)
+    total_reward = torch.where(episode_failed, torch.tensor(-100.0)+total_reward, total_reward)
+    total_reward = torch.where(goal_reached, torch.tensor(200.0)+total_reward, total_reward)
+    
+    # Reshape the reward tensor
+    total_reward = total_reward[:, None]
+    
+    return total_reward
+
+
 def cartpole(act: torch.Tensor, next_obs: torch.Tensor) -> torch.Tensor:
     assert len(next_obs.shape) == len(act.shape) == 2
 
